@@ -53,6 +53,7 @@ class KeyboardCounter:
         self._lock = Lock()
         self._session_delta = 0
         self._session_positive_count = 0
+        self._session_backspace_count = 0
         self._last_input_at: datetime | None = None
         self._recent_positive_events: deque[datetime] = deque()
 
@@ -70,17 +71,24 @@ class KeyboardCounter:
     def get_live_stats(self) -> dict:
         with self._lock:
             self._trim_recent_events()
+            total_actions = self._session_positive_count + self._session_backspace_count
+            accuracy = 0.0
+            if total_actions > 0:
+                accuracy = self._session_positive_count / total_actions
             return {
                 "session_delta": self._session_delta,
                 "session_positive_count": self._session_positive_count,
+                "session_backspace_count": self._session_backspace_count,
                 "recent_cpm": len(self._recent_positive_events),
                 "last_input_at": self._last_input_at.isoformat(timespec="seconds") if self._last_input_at else None,
+                "session_accuracy": accuracy,
             }
 
     def reset_session_stats(self) -> None:
         with self._lock:
             self._session_delta = 0
             self._session_positive_count = 0
+            self._session_backspace_count = 0
             self._last_input_at = None
             self._recent_positive_events.clear()
 
@@ -90,19 +98,30 @@ class KeyboardCounter:
             return
 
         delta = self._resolve_delta(key_name)
-        if delta == 0:
+        is_backspace = key_name == "backspace"
+        positive_count = delta if delta > 0 else 0
+        backspace_count = 1 if is_backspace else 0
+
+        if delta == 0 and backspace_count == 0:
             return
 
         now = datetime.now()
-        self.store.increment(delta, event_time=now)
+        self.store.record_key(
+            delta=delta,
+            positive_count=positive_count,
+            backspace_count=backspace_count,
+            event_time=now,
+        )
 
         with self._lock:
             self._session_delta += delta
             self._last_input_at = now
-            if delta > 0:
-                self._session_positive_count += delta
-                for _ in range(delta):
+            if positive_count > 0:
+                self._session_positive_count += positive_count
+                for _ in range(positive_count):
                     self._recent_positive_events.append(now)
+            if backspace_count > 0:
+                self._session_backspace_count += backspace_count
             self._trim_recent_events()
 
     def _trim_recent_events(self) -> None:
