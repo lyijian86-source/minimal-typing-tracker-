@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+import os
 import sys
 import tkinter.messagebox as messagebox
 
@@ -31,11 +32,28 @@ def main() -> None:
         finally:
             raise SystemExit(1) from exc
 
-    window = CounterWindow(config=config, store=store)
+    window = CounterWindow(config=config, store=store, counter=counter)
     is_exiting = False
 
     def show_window() -> None:
         window.call_in_main_thread(window.show)
+
+    def reset_today() -> None:
+        def confirm_and_reset() -> None:
+            should_reset = messagebox.askyesno(
+                "Reset Today",
+                "Reset today's count to 0?",
+            )
+            if not should_reset:
+                return
+            store.reset_today()
+            counter.reset_session_stats()
+            window.show()
+
+        window.call_in_main_thread(confirm_and_reset)
+
+    def open_data_folder() -> None:
+        os.startfile(str(store.data_dir))
 
     def exit_app() -> None:
         nonlocal is_exiting
@@ -49,6 +67,8 @@ def main() -> None:
     tray = TrayController(
         tooltip=config.tray_tooltip,
         on_show=show_window,
+        on_reset_today=reset_today,
+        on_open_data_folder=open_data_folder,
         on_exit=exit_app,
     )
     tray.start()
