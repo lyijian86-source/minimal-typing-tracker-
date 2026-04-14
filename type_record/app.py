@@ -51,6 +51,9 @@ def main() -> None:
     def open_settings() -> None:
         window.call_in_main_thread(window.open_settings_dialog)
 
+    def open_history() -> None:
+        window.call_in_main_thread(window.open_history_dialog)
+
     def reset_today() -> None:
         def confirm_and_reset() -> None:
             should_reset = messagebox.askyesno(tr(config.language, "reset_title"), tr(config.language, "reset_confirm"))
@@ -79,6 +82,7 @@ def main() -> None:
         tooltip=config.tray_tooltip,
         language=config.language,
         on_show=show_window,
+        on_open_history=open_history,
         on_open_settings=open_settings,
         on_export_csv=export_csv,
         on_reset_today=reset_today,

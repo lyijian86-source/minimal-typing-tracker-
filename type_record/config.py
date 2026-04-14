@@ -13,6 +13,7 @@ class AppConfig:
     count_enter: bool = False
     backspace_decrements: bool = True
     refresh_interval_ms: int = 300
+    session_timeout_seconds: int = 300
     tray_tooltip: str = "Type Record"
     start_hidden_to_tray: bool = True
     language: str = "en"

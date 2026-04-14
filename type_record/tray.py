@@ -16,6 +16,7 @@ class TrayController:
         tooltip: str,
         language: str,
         on_show: Callable[[], None],
+        on_open_history: Callable[[], None],
         on_open_settings: Callable[[], None],
         on_export_csv: Callable[[], None],
         on_reset_today: Callable[[], None],
@@ -25,6 +26,7 @@ class TrayController:
         self.tooltip = tooltip
         self.language = language
         self.on_show = on_show
+        self.on_open_history = on_open_history
         self.on_open_settings = on_open_settings
         self.on_export_csv = on_export_csv
         self.on_reset_today = on_reset_today
@@ -52,6 +54,7 @@ class TrayController:
     def _build_and_run(self) -> None:
         menu = pystray.Menu(
             pystray.MenuItem(tr(self.language, "show_window"), self._handle_show, default=True),
+            pystray.MenuItem(tr(self.language, "open_history"), self._handle_open_history),
             pystray.MenuItem(tr(self.language, "settings"), self._handle_open_settings),
             pystray.MenuItem(tr(self.language, "export_csv"), self._handle_export_csv),
             pystray.MenuItem(tr(self.language, "reset_today"), self._handle_reset_today),
@@ -69,6 +72,10 @@ class TrayController:
     def _handle_open_settings(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
         _ = (icon, item)
         self.on_open_settings()
+
+    def _handle_open_history(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
+        _ = (icon, item)
+        self.on_open_history()
 
     def _handle_export_csv(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
         _ = (icon, item)
