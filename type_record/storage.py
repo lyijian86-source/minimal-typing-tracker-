@@ -32,6 +32,42 @@ class DailyCountStore:
             self._ensure_today_record()
             return int(self._state["counts_by_date"][self._today_str()])
 
+    def record_session(
+        self,
+        started_at: datetime,
+        ended_at: datetime,
+        delta: int,
+        positive_count: int,
+        pasted_count: int,
+        backspace_count: int,
+    ) -> None:
+        with self._lock:
+            self._ensure_today_record()
+            day_key = started_at.date().isoformat()
+            keyboard_typed = max(0, positive_count - pasted_count)
+            duration_seconds = max(0, int((ended_at - started_at).total_seconds()))
+            if keyboard_typed <= 0 and pasted_count <= 0 and backspace_count <= 0 and delta == 0:
+                return
+
+            sessions = self._state["sessions_by_date"].setdefault(day_key, [])
+            accuracy = 0.0
+            if keyboard_typed > 0:
+                accuracy = max(0, keyboard_typed - backspace_count) / keyboard_typed
+
+            sessions.append(
+                {
+                    "started_at": started_at.isoformat(timespec="seconds"),
+                    "ended_at": ended_at.isoformat(timespec="seconds"),
+                    "duration_seconds": duration_seconds,
+                    "delta": delta,
+                    "typed": keyboard_typed,
+                    "pasted": max(0, int(pasted_count)),
+                    "backspace": max(0, int(backspace_count)),
+                    "accuracy": accuracy,
+                }
+            )
+            self._save()
+
     def record_key(
         self,
         delta: int,
@@ -81,7 +117,36 @@ class DailyCountStore:
             self._state["peak_wpm_by_date"][today] = 0.0
             self._state["hourly_typed_by_date"][today] = {}
             self._state["hourly_pasted_by_date"][today] = {}
+            self._state["sessions_by_date"][today] = []
             self._save()
+
+    def get_recent_sessions(self, limit: int = 20) -> list[dict]:
+        with self._lock:
+            self._ensure_today_record()
+            sessions: list[dict] = []
+            raw_sessions = self._state.get("sessions_by_date", {})
+            if isinstance(raw_sessions, dict):
+                for day_key, items in raw_sessions.items():
+                    if not isinstance(items, list):
+                        continue
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                        sessions.append(
+                            {
+                                "date": str(day_key),
+                                "started_at": str(item.get("started_at", "")),
+                                "ended_at": str(item.get("ended_at", "")),
+                                "duration_seconds": max(0, int(item.get("duration_seconds", 0))),
+                                "delta": int(item.get("delta", 0)),
+                                "typed": max(0, int(item.get("typed", 0))),
+                                "pasted": max(0, int(item.get("pasted", 0))),
+                                "backspace": max(0, int(item.get("backspace", 0))),
+                                "accuracy": max(0.0, float(item.get("accuracy", 0.0))),
+                            }
+                        )
+            sessions.sort(key=lambda item: item["ended_at"], reverse=True)
+            return sessions[:limit]
 
     def get_summary(self) -> dict:
         with self._lock:
@@ -254,6 +319,7 @@ class DailyCountStore:
         self._state.setdefault("peak_wpm_by_date", {})
         self._state.setdefault("hourly_typed_by_date", {})
         self._state.setdefault("hourly_pasted_by_date", {})
+        self._state.setdefault("sessions_by_date", {})
         self._state["counts_by_date"].setdefault(today, 0)
         self._state["typed_by_date"].setdefault(today, 0)
         self._state["pasted_by_date"].setdefault(today, 0)
@@ -261,6 +327,7 @@ class DailyCountStore:
         self._state["peak_wpm_by_date"].setdefault(today, 0.0)
         self._state["hourly_typed_by_date"].setdefault(today, {})
         self._state["hourly_pasted_by_date"].setdefault(today, {})
+        self._state["sessions_by_date"].setdefault(today, [])
 
     def _load(self) -> dict:
         data = self._load_json_file(self.file_path)
@@ -280,6 +347,7 @@ class DailyCountStore:
                 "peak_wpm_by_date": {legacy_date: 0.0},
                 "hourly_typed_by_date": {legacy_date: {}},
                 "hourly_pasted_by_date": {legacy_date: {}},
+                "sessions_by_date": {legacy_date: []},
                 "last_input_at": None,
             }
 
@@ -290,6 +358,7 @@ class DailyCountStore:
         peak_wpm_by_date = {}
         hourly_typed_by_date = {}
         hourly_pasted_by_date = {}
+        sessions_by_date = {}
 
         raw_counts = data.get("counts_by_date", {})
         if isinstance(raw_counts, dict):
@@ -334,6 +403,28 @@ class DailyCountStore:
                         for hour_key, value in hours.items()
                     }
 
+        raw_sessions = data.get("sessions_by_date", {})
+        if isinstance(raw_sessions, dict):
+            for day_key, items in raw_sessions.items():
+                if not isinstance(items, list):
+                    continue
+                sessions_by_date[str(day_key)] = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    sessions_by_date[str(day_key)].append(
+                        {
+                            "started_at": str(item.get("started_at", "")),
+                            "ended_at": str(item.get("ended_at", "")),
+                            "duration_seconds": max(0, int(item.get("duration_seconds", 0))),
+                            "delta": int(item.get("delta", 0)),
+                            "typed": max(0, int(item.get("typed", 0))),
+                            "pasted": max(0, int(item.get("pasted", 0))),
+                            "backspace": max(0, int(item.get("backspace", 0))),
+                            "accuracy": max(0.0, float(item.get("accuracy", 0.0))),
+                        }
+                    )
+
         return {
             "counts_by_date": counts_by_date,
             "typed_by_date": typed_by_date,
@@ -342,6 +433,7 @@ class DailyCountStore:
             "peak_wpm_by_date": peak_wpm_by_date,
             "hourly_typed_by_date": hourly_typed_by_date,
             "hourly_pasted_by_date": hourly_pasted_by_date,
+            "sessions_by_date": sessions_by_date,
             "last_input_at": data.get("last_input_at"),
         }
 
@@ -354,6 +446,7 @@ class DailyCountStore:
             "peak_wpm_by_date": {},
             "hourly_typed_by_date": {},
             "hourly_pasted_by_date": {},
+            "sessions_by_date": {},
             "last_input_at": None,
         }
 

@@ -55,6 +55,7 @@ class KeyboardCounter:
         self._hook = None
         self._lock = Lock()
         self._session_started_at: datetime | None = None
+        self._session_day_key: str | None = None
         self._session_delta = 0
         self._session_positive_count = 0
         self._session_pasted_count = 0
@@ -70,12 +71,25 @@ class KeyboardCounter:
     def stop(self) -> None:
         if self._hook is None:
             return
-        keyboard.unhook(self._hook)
+        try:
+            keyboard.unhook(self._hook)
+        except KeyError:
+            # The keyboard package may already have dropped the hook reference.
+            # Treat stop as best-effort so shutdown can still flush session data.
+            pass
         self._hook = None
+        snapshot = None
+        with self._lock:
+            snapshot = self._snapshot_current_session(self._last_input_at or self._now())
+            self._clear_session_state()
+        if snapshot is not None:
+            self.store.record_session(**snapshot)
 
     def get_live_stats(self) -> dict:
+        snapshot = None
         with self._lock:
             now = self._now()
+            snapshot = self._reset_session_if_day_changed(now)
             self._trim_recent_events(now)
             session_typed_count = max(0, self._session_positive_count - self._session_pasted_count)
             session_is_active = self._is_session_active(now)
@@ -87,7 +101,7 @@ class KeyboardCounter:
             accuracy = 0.0
             if session_typed_count > 0:
                 accuracy = max(0, session_typed_count - self._session_backspace_count) / session_typed_count
-            return {
+            stats = {
                 "session_is_active": session_is_active,
                 "session_duration_seconds": session_duration_seconds,
                 "session_delta": self._session_delta,
@@ -98,16 +112,13 @@ class KeyboardCounter:
                 "last_input_at": self._last_input_at.isoformat(timespec="seconds") if self._last_input_at else None,
                 "session_accuracy": accuracy,
             }
+        if snapshot is not None:
+            self.store.record_session(**snapshot)
+        return stats
 
     def reset_session_stats(self) -> None:
         with self._lock:
-            self._session_started_at = None
-            self._session_delta = 0
-            self._session_positive_count = 0
-            self._session_pasted_count = 0
-            self._session_backspace_count = 0
-            self._last_input_at = None
-            self._recent_positive_events.clear()
+            self._clear_session_state()
 
     def _handle_key_event(self, event: keyboard.KeyboardEvent) -> None:
         key_name = (event.name or "").lower()
@@ -140,9 +151,10 @@ class KeyboardCounter:
     def _record_input(self, delta: int, positive_count: int, pasted_count: int, backspace_count: int, count_for_speed: bool) -> None:
         now = self._now()
         peak_wpm: float | None = None
+        snapshot = None
 
         with self._lock:
-            self._ensure_active_session(now)
+            snapshot = self._ensure_active_session(now)
             self._session_delta += delta
             self._last_input_at = now
             if positive_count > 0:
@@ -157,6 +169,8 @@ class KeyboardCounter:
             if positive_count > 0 and count_for_speed:
                 peak_wpm = len(self._recent_positive_events) / 5.0
 
+        if snapshot is not None:
+            self.store.record_session(**snapshot)
         self.store.record_key(
             delta=delta,
             positive_count=positive_count,
@@ -171,17 +185,38 @@ class KeyboardCounter:
         while self._recent_positive_events and (now - self._recent_positive_events[0]).total_seconds() > 60:
             self._recent_positive_events.popleft()
 
-    def _ensure_active_session(self, now: datetime) -> None:
-        if self._session_started_at is None or self._is_session_expired(now):
+    def _ensure_active_session(self, now: datetime) -> dict | None:
+        snapshot = self._reset_session_if_day_changed(now)
+        if self._session_started_at is None:
             self._start_new_session(now)
+            return snapshot
+        if self._is_session_expired(now):
+            expired_snapshot = self._snapshot_current_session(self._last_input_at or now)
+            self._start_new_session(now)
+            return expired_snapshot or snapshot
+        return snapshot
 
     def _start_new_session(self, now: datetime) -> None:
         self._session_started_at = now
+        self._session_day_key = now.date().isoformat()
         self._session_delta = 0
         self._session_positive_count = 0
         self._session_pasted_count = 0
         self._session_backspace_count = 0
         self._recent_positive_events.clear()
+
+    def _reset_session_if_day_changed(self, now: datetime) -> dict | None:
+        if self._session_day_key is None:
+            return None
+        if self._session_day_key == now.date().isoformat():
+            return None
+
+        # Session metrics are presented as "today/current session" context.
+        # Once the day changes, carrying yesterday's runtime session into the
+        # new day makes the numbers hard to interpret, so we start fresh.
+        snapshot = self._snapshot_current_session(self._last_input_at or now)
+        self._clear_session_state()
+        return snapshot
 
     def _is_session_active(self, now: datetime) -> bool:
         return self._session_started_at is not None and not self._is_session_expired(now)
@@ -193,6 +228,31 @@ class KeyboardCounter:
 
     def _now(self) -> datetime:
         return datetime.now()
+
+    def _snapshot_current_session(self, ended_at: datetime) -> dict | None:
+        if self._session_started_at is None:
+            return None
+        keyboard_typed = max(0, self._session_positive_count - self._session_pasted_count)
+        if keyboard_typed <= 0 and self._session_pasted_count <= 0 and self._session_backspace_count <= 0 and self._session_delta == 0:
+            return None
+        return {
+            "started_at": self._session_started_at,
+            "ended_at": ended_at,
+            "delta": self._session_delta,
+            "positive_count": self._session_positive_count,
+            "pasted_count": self._session_pasted_count,
+            "backspace_count": self._session_backspace_count,
+        }
+
+    def _clear_session_state(self) -> None:
+        self._session_started_at = None
+        self._session_day_key = None
+        self._session_delta = 0
+        self._session_positive_count = 0
+        self._session_pasted_count = 0
+        self._session_backspace_count = 0
+        self._last_input_at = None
+        self._recent_positive_events.clear()
 
     def _resolve_delta(self, key_name: str) -> int:
         if len(key_name) == 1:
