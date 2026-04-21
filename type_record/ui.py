@@ -13,22 +13,22 @@ from type_record.storage import DailyCountStore
 # ---------------------------------------------------------------------------
 # Design system — colour tokens
 # ---------------------------------------------------------------------------
-_BG = "#F4F5F9"
+_BG = "#F6F5F2"
 _CARD = "#FFFFFF"
-_CARD_INNER = "#F6F7FB"
-_BORDER = "#E2E5EE"
-_BORDER_INNER = "#ECEEF4"
-_TEXT_PRIMARY = "#1A1D26"
-_TEXT_SECONDARY = "#4A5068"
-_TEXT_TERTIARY = "#8B92A5"
-_TEXT_QUATERNARY = "#B0B6C6"
-_ACCENT = "#5C6AC4"
-_ACCENT_LIGHT = "#E8EAF6"
-_ACCENT_SOFT = "#9CA3D4"
-_CHART_BG = "#FAFAFE"
-_CHART_GRID = "#EDEFF5"
-_HOURLY_TYPED = "#5C6AC4"
-_HOURLY_PASTED = "#B8BDE0"
+_CARD_INNER = "#F8F7F4"
+_BORDER = "#E7E2DA"
+_BORDER_INNER = "#EEE9E2"
+_TEXT_PRIMARY = "#191A1D"
+_TEXT_SECONDARY = "#48515C"
+_TEXT_TERTIARY = "#868B94"
+_TEXT_QUATERNARY = "#B6B0A8"
+_ACCENT = "#2F4354"
+_ACCENT_LIGHT = "#E6EBEE"
+_ACCENT_SOFT = "#8FA1AE"
+_CHART_BG = "#F8F7F3"
+_CHART_GRID = "#E8E3DC"
+_HOURLY_TYPED = "#2F4354"
+_HOURLY_PASTED = "#B9C6CF"
 _SUCCESS = "#4CAF82"
 
 
@@ -252,7 +252,8 @@ class CounterWindow:
         self._history_preview_canvas.create_window((0, 0), window=self._history_preview_inner, anchor="nw")
         self._history_preview_inner.bind("<Configure>", lambda _e: self._sync_history_preview_scrollregion())
         self._history_preview_canvas.bind("<Configure>", lambda e: self._resize_history_preview_inner(e.width))
-        self._history_preview_canvas.bind("<MouseWheel>", self._on_history_preview_mousewheel)
+        self._bind_history_preview_mousewheel(self._history_preview_canvas)
+        self._bind_history_preview_mousewheel(self._history_preview_inner)
         tk.Label(history, textvariable=self.history_footer_var, bg=_CARD, fg=_TEXT_QUATERNARY, font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(12, 0))
 
     # ------------------------------------------------------------------
@@ -261,8 +262,8 @@ class CounterWindow:
     def open_settings_dialog(self) -> None:
         dialog = tk.Toplevel(self.root)
         dialog.title(tr(self.config.language, "settings_title"))
-        dialog.geometry("540x580")
-        dialog.minsize(540, 580)
+        dialog.geometry("540x520")
+        dialog.minsize(540, 520)
         dialog.resizable(False, False)
         dialog.configure(bg=_BG)
         dialog.transient(self.root)
@@ -276,16 +277,19 @@ class CounterWindow:
         count_space, count_enter = tk.BooleanVar(value=self.config.count_space), tk.BooleanVar(value=self.config.count_enter)
         backspace_decrements, start_hidden = tk.BooleanVar(value=self.config.backspace_decrements), tk.BooleanVar(value=self.config.start_hidden_to_tray)
         language_mode = tk.StringVar(value=self.config.language)
+        tk.Label(card, text=tr(self.config.language, "counting_rules"), bg=_CARD, fg=_TEXT_TERTIARY, font=("Segoe UI Semibold", 8)).pack(anchor=tk.W, pady=(0, 8))
         box = self._subcard(card)
         box.pack(fill=tk.X)
-        for text, var in [(tr(self.config.language, "count_space"), count_space), (tr(self.config.language, "count_enter"), count_enter), (tr(self.config.language, "backspace_subtracts"), backspace_decrements), (tr(self.config.language, "start_hidden"), start_hidden)]:
+        for text, var in [(tr(self.config.language, "count_space"), count_space), (tr(self.config.language, "count_enter"), count_enter), (tr(self.config.language, "backspace_subtracts"), backspace_decrements)]:
             tk.Checkbutton(box, text=text, variable=var, bg=_CARD_INNER, activebackground=_CARD_INNER, fg=_TEXT_SECONDARY, activeforeground=_TEXT_SECONDARY, selectcolor=_CARD, font=("Segoe UI", 10), anchor="w", padx=2, pady=6, relief=tk.FLAT).pack(fill=tk.X)
-        tk.Label(card, text=tr(self.config.language, "language_mode"), bg=_CARD, fg=_TEXT_PRIMARY, font=("Segoe UI Semibold", 10)).pack(anchor=tk.W, pady=(18, 8))
+        tk.Label(card, text=tr(self.config.language, "app_preferences"), bg=_CARD, fg=_TEXT_TERTIARY, font=("Segoe UI Semibold", 8)).pack(anchor=tk.W, pady=(18, 8))
         lang = self._subcard(card)
         lang.pack(fill=tk.X)
+        tk.Checkbutton(lang, text=tr(self.config.language, "start_hidden"), variable=start_hidden, bg=_CARD_INNER, activebackground=_CARD_INNER, fg=_TEXT_SECONDARY, activeforeground=_TEXT_SECONDARY, selectcolor=_CARD, font=("Segoe UI", 10), anchor="w", padx=2, pady=6, relief=tk.FLAT).pack(fill=tk.X, pady=(0, 10))
+        tk.Label(lang, text=tr(self.config.language, "language_mode"), bg=_CARD_INNER, fg=_TEXT_TERTIARY, font=("Segoe UI Semibold", 8)).pack(anchor=tk.W, pady=(0, 8))
         tk.Radiobutton(lang, text=tr(self.config.language, "lang_zh"), value="zh", variable=language_mode, bg=_CARD_INNER, activebackground=_CARD_INNER, fg=_TEXT_SECONDARY, activeforeground=_TEXT_SECONDARY, selectcolor=_CARD, font=("Segoe UI", 10)).pack(anchor=tk.W)
         tk.Radiobutton(lang, text=tr(self.config.language, "lang_en"), value="en", variable=language_mode, bg=_CARD_INNER, activebackground=_CARD_INNER, fg=_TEXT_SECONDARY, activeforeground=_TEXT_SECONDARY, selectcolor=_CARD, font=("Segoe UI", 10)).pack(anchor=tk.W, pady=(8, 0))
-        tk.Frame(card, bg=_CARD).pack(fill=tk.BOTH, expand=True, pady=(0, 12))
+        tk.Frame(card, bg=_CARD).pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
         def save_settings() -> None:
             self.config.count_space = bool(count_space.get())
@@ -313,8 +317,8 @@ class CounterWindow:
             return
         dialog = tk.Toplevel(self.root)
         dialog.title(tr(self.config.language, "full_history"))
-        dialog.geometry("900x680")
-        dialog.minsize(860, 620)
+        dialog.geometry("820x660")
+        dialog.minsize(780, 600)
         dialog.configure(bg=_BG)
         dialog.transient(self.root)
         self._history_dialog = dialog
@@ -326,13 +330,13 @@ class CounterWindow:
         tk.Label(card, text=tr(self.config.language, "full_history_desc"), bg=_CARD, fg=_TEXT_TERTIARY, font=("Segoe UI", 9)).pack(anchor=tk.W, pady=(7, 16))
         wrap = tk.Frame(card, bg=_CARD)
         wrap.pack(fill=tk.BOTH, expand=True)
-        cols = ("date", "count", "typed", "pasted", "backspace", "accuracy", "peak_wpm")
+        cols = ("date", "count", "typed", "backspace", "accuracy", "peak_wpm")
         tree = ttk.Treeview(wrap, columns=cols, show="headings", style="TypeRecord.Treeview")
-        for col, label in [("date", "history_columns_date"), ("count", "history_columns_count"), ("typed", "history_columns_typed"), ("pasted", "history_columns_pasted"), ("backspace", "history_columns_backspace"), ("accuracy", "history_columns_accuracy"), ("peak_wpm", "history_columns_peak_wpm")]:
+        for col, label in [("date", "history_columns_date"), ("count", "history_columns_count"), ("typed", "history_columns_typed"), ("backspace", "history_columns_backspace"), ("accuracy", "history_columns_accuracy"), ("peak_wpm", "history_columns_peak_wpm")]:
             tree.heading(col, text=tr(self.config.language, label))
-        tree.column("date", width=150, anchor=tk.W)
-        for col in ("count", "typed", "pasted", "backspace", "accuracy", "peak_wpm"):
-            tree.column(col, width=92, anchor=tk.E)
+        tree.column("date", width=160, anchor=tk.W)
+        for col in ("count", "typed", "backspace", "accuracy", "peak_wpm"):
+            tree.column(col, width=110, anchor=tk.E)
         sb = ttk.Scrollbar(wrap, orient=tk.VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -376,12 +380,11 @@ class CounterWindow:
         self._hourly_canvas.bind("<Configure>", lambda _e: self._draw_hourly_chart())
         wrap = tk.Frame(card, bg=_CARD)
         wrap.pack(fill=tk.BOTH, expand=True, pady=(14, 0))
-        tree = ttk.Treeview(wrap, columns=("hour", "typed", "pasted", "total"), show="headings", style="TypeRecord.Treeview")
-        for col, label in [("hour", "hourly_table_hour"), ("typed", "hourly_table_typed"), ("pasted", "hourly_table_pasted"), ("total", "hourly_table_total")]:
+        tree = ttk.Treeview(wrap, columns=("hour", "total"), show="headings", style="TypeRecord.Treeview")
+        for col, label in [("hour", "hourly_table_hour"), ("total", "hourly_table_total")]:
             tree.heading(col, text=tr(self.config.language, label))
-        tree.column("hour", width=120, anchor=tk.W)
-        for col in ("typed", "pasted", "total"):
-            tree.column(col, width=120, anchor=tk.E)
+        tree.column("hour", width=180, anchor=tk.W)
+        tree.column("total", width=180, anchor=tk.E)
         sb = ttk.Scrollbar(wrap, orient=tk.VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -398,7 +401,7 @@ class CounterWindow:
             return
         self._history_tree.delete(*self._history_tree.get_children())
         for item in self.store.get_full_history():
-            self._history_tree.insert("", tk.END, values=(item["date"], item["count"], item["typed"], item["pasted"], item["backspace"], f"{item['accuracy'] * 100:.1f}%", f"{item['peak_wpm']:.1f}"))
+            self._history_tree.insert("", tk.END, values=(item["date"], item["count"], item["typed"], item["backspace"], f"{item['accuracy'] * 100:.1f}%", f"{item['peak_wpm']:.1f}"))
 
     def _refresh_hourly_dialog(self) -> None:
         if self._hourly_tree is None:
@@ -414,7 +417,7 @@ class CounterWindow:
         data = self.store.get_hourly_distribution(selected)
         self._hourly_tree.delete(*self._hourly_tree.get_children())
         for item in data:
-            self._hourly_tree.insert("", tk.END, values=(f"{item['hour']}:00", item["typed"], item["pasted"], item["total"]))
+            self._hourly_tree.insert("", tk.END, values=(f"{item['hour']}:00", item["total"]))
         if self._hourly_peak_var is not None:
             peak = max(data, key=lambda item: item["total"], default=None)
             self._hourly_peak_var.set(f"{tr(self.config.language, 'hourly_peak')}: {selected}  {peak['hour']}:00  {peak['total']}" if peak and peak["total"] > 0 else tr(self.config.language, "hourly_empty"))
@@ -487,12 +490,18 @@ class CounterWindow:
             return
         peak = max(non_zero, key=lambda item: item["count"])
         latest = self._latest_trend_history[-1]
-        self.trend_peak_var.set(f"{peak['count']}  {peak['date']}")
-        self.trend_latest_var.set(f"{latest['count']}  {latest['date']}")
-        if self.config.language == "zh":
-            self.trend_meta_var.set(f"峰值 {peak['count']}  {peak['date']}  |  最新 {latest['count']}  {latest['date']}")
-        else:
-            self.trend_meta_var.set(f"Peak {peak['count']}  {peak['date']}  |  Latest {latest['count']}  {latest['date']}")
+        self.trend_peak_var.set(f"{peak['count']}  /  {peak['date'][5:]}")
+        self.trend_latest_var.set(f"{latest['count']}  /  {latest['date'][5:]}")
+        self.trend_meta_var.set(
+            tr(
+                self.config.language,
+                "trend_meta",
+                peak=peak["count"],
+                peak_date=peak["date"],
+                latest=latest["count"],
+                latest_date=latest["date"],
+            )
+        )
 
     # ------------------------------------------------------------------
     # Trend chart
@@ -504,12 +513,11 @@ class CounterWindow:
         if not data:
             return
 
-        width = max(canvas.winfo_width(), 560)
-        height = max(canvas.winfo_height(), 320)
-        ml, mr, mt, mb = 52, 18, 18, 38
+        width = max(canvas.winfo_width(), 640)
+        height = max(canvas.winfo_height(), 360)
+        ml, mr, mt, mb = 42, 24, 28, 38
         cw, ch = width - ml - mr, height - mt - mb
 
-        # Background
         canvas.create_rectangle(0, 0, width, height, fill=_CHART_BG, outline="")
 
         max_count = max((item["count"] for item in data), default=0)
@@ -521,60 +529,49 @@ class CounterWindow:
             )
             return
 
-        plot_max = max_count * 1.15
+        plot_max = max_count * 1.08
 
-        # Y-axis grid lines and labels
-        num_grid = 5
-        for i in range(num_grid + 1):
-            ratio = i / num_grid
+        for ratio in (0.18, 0.5, 0.82):
             y = mt + ch * ratio
-            value = int(plot_max * (1 - ratio))
-            canvas.create_line(ml, y, width - mr, y, fill=_CHART_GRID, width=1, dash=(2, 4))
-            canvas.create_text(
-                ml - 8, y,
-                text=self._format_axis_value(value),
-                fill=_TEXT_QUATERNARY, font=("Segoe UI", 8), anchor="e",
-            )
+            canvas.create_line(ml, y, width - mr, y, fill=_CHART_GRID, width=1)
 
-        # Compute data point coordinates
         n = len(data)
         coords: list[tuple[float, float, dict]] = []
         flat_points: list[float] = []
         for index, item in enumerate(data):
             x = ml + cw * index / (n - 1) if n > 1 else ml
             y = mt + ch * (1 - item["count"] / plot_max)
-            # Clamp to chart area to prevent spline overshoot
             y = max(mt, min(mt + ch, y))
             coords.append((x, y, item))
             flat_points.extend([x, y])
 
-        # Area fill (smooth polygon)
         area_coords: list[float] = [ml, mt + ch] + flat_points + [width - mr, mt + ch]
-        canvas.create_polygon(*area_coords, fill=_ACCENT_LIGHT, outline="", smooth=True, splinesteps=36)
+        canvas.create_polygon(*area_coords, fill="#EDEAE3", outline="", smooth=True, splinesteps=28)
 
-        # Main line (smooth)
         if len(flat_points) >= 4:
             canvas.create_line(
-                *flat_points, fill=_ACCENT, width=2.5, smooth=True,
-                splinesteps=36, capstyle=tk.ROUND, joinstyle=tk.ROUND,
+                *flat_points, fill="#C9D0D6", width=6, smooth=True,
+                splinesteps=28, capstyle=tk.ROUND, joinstyle=tk.ROUND,
+            )
+            canvas.create_line(
+                *flat_points, fill=_ACCENT, width=2, smooth=True,
+                splinesteps=28, capstyle=tk.ROUND, joinstyle=tk.ROUND,
             )
         elif len(flat_points) >= 2:
-            canvas.create_line(*flat_points, fill=_ACCENT, width=2.5, capstyle=tk.ROUND)
+            canvas.create_line(*flat_points, fill=_ACCENT, width=2, capstyle=tk.ROUND)
 
-        # X-axis date labels
+        canvas.create_line(ml, mt + ch, width - mr, mt + ch, fill="#DDD8D1", width=1)
         self._draw_x_axis_labels(canvas, data, ml, mr, width, height)
 
-        # Peak annotation (always visible)
         peak_coord = max(coords, key=lambda c: c[2]["count"])
         if peak_coord[2]["count"] > 0:
             self._draw_peak_annotation(canvas, peak_coord, mt)
 
-        # Latest point marker
         latest = coords[-1]
         if latest[2]["count"] > 0:
             lx, ly = latest[0], latest[1]
-            canvas.create_oval(lx - 7, ly - 7, lx + 7, ly + 7, fill=_ACCENT_LIGHT, outline="")
-            canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, fill=_ACCENT, outline="")
+            canvas.create_oval(lx - 7, ly - 7, lx + 7, ly + 7, fill=_CHART_BG, outline="#ADB9C2", width=1)
+            canvas.create_oval(lx - 3, ly - 3, lx + 3, ly + 3, fill=_ACCENT, outline="")
 
     def _draw_x_axis_labels(self, canvas: tk.Canvas, data: list[dict], ml: int, mr: int, width: int, height: int) -> None:
         n = len(data)
@@ -650,9 +647,9 @@ class CounterWindow:
             canvas.delete(item_id)
         self._trend_tooltip_items.clear()
 
-        width = max(canvas.winfo_width(), 560)
-        height = max(canvas.winfo_height(), 320)
-        ml, mr, mt, mb = 52, 18, 18, 38
+        width = max(canvas.winfo_width(), 640)
+        height = max(canvas.winfo_height(), 360)
+        ml, mr, mt, mb = 42, 24, 28, 38
         cw, ch = width - ml - mr, height - mt - mb
 
         mouse_x = event.x
@@ -665,7 +662,7 @@ class CounterWindow:
         max_count = max((d["count"] for d in data), default=0)
         if max_count <= 0:
             return
-        plot_max = max_count * 1.15
+        plot_max = max_count * 1.08
 
         index = round((mouse_x - ml) / cw * (n - 1)) if n > 1 else 0
         index = max(0, min(n - 1, index))
@@ -676,11 +673,11 @@ class CounterWindow:
         y = max(mt, min(mt + ch, y))
 
         # Vertical crosshair
-        line_id = canvas.create_line(x, mt, x, mt + ch, fill=_ACCENT_SOFT, width=1, dash=(3, 3))
+        line_id = canvas.create_line(x, mt, x, mt + ch, fill="#C8C0B6", width=1, dash=(3, 5))
         self._trend_tooltip_items.append(line_id)
 
         # Highlighted data point
-        marker_outer = canvas.create_oval(x - 6, y - 6, x + 6, y + 6, fill="#FFFFFF", outline=_ACCENT, width=2)
+        marker_outer = canvas.create_oval(x - 6, y - 6, x + 6, y + 6, fill=_CHART_BG, outline=_ACCENT, width=1)
         marker_inner = canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=_ACCENT, outline="")
         self._trend_tooltip_items.extend([marker_outer, marker_inner])
 
@@ -781,29 +778,13 @@ class CounterWindow:
 
         for i, item in enumerate(data):
             x = ml + i * slot_width + (slot_width - bar_width) / 2
-            typed_height = 0
-            pasted_height = 0
-            if item["typed"] > 0:
-                typed_height = max(4, ch * item["typed"] / max_total)
-            if item["pasted"] > 0:
-                pasted_height = max(4, ch * item["pasted"] / max_total)
-
-            # Typed bar (bottom, rounded top)
-            if item["typed"] > 0:
-                r = min(5, typed_height / 2)
+            total_height = max(4, ch * item["total"] / max_total) if item["total"] > 0 else 0
+            if total_height > 0:
+                r = min(5, total_height / 2)
                 self._rounded_top_bar(
                     canvas,
-                    x, baseline - typed_height, x + bar_width, baseline,
+                    x, baseline - total_height, x + bar_width, baseline,
                     r=r, fill=_HOURLY_TYPED, outline="",
-                )
-
-            # Pasted bar (stacked on top of typed, rounded top)
-            if item["pasted"] > 0:
-                r = min(5, pasted_height / 2)
-                self._rounded_top_bar(
-                    canvas,
-                    x, baseline - typed_height - pasted_height, x + bar_width, baseline - typed_height,
-                    r=r, fill=_HOURLY_PASTED, outline="",
                 )
 
             # X-axis label every 4 hours
@@ -846,6 +827,7 @@ class CounterWindow:
             tk.Label(row_head, textvariable=row_vars["date"], bg=_CARD_INNER, fg=_TEXT_TERTIARY, font=("Segoe UI Semibold", 9)).pack(side=tk.LEFT)
             tk.Label(row_head, textvariable=row_vars["count"], bg=_CARD_INNER, fg=_TEXT_SECONDARY, font=("Segoe UI Semibold", 15)).pack(side=tk.RIGHT)
             tk.Label(row_card, textvariable=row_vars["meta"], bg=_CARD_INNER, fg=_TEXT_TERTIARY, font=("Segoe UI", 9), justify=tk.LEFT, wraplength=360).pack(anchor=tk.W, pady=(8, 0))
+            self._bind_history_preview_mousewheel(row_card)
 
         while len(self.history_vars) > count:
             row_vars = self.history_vars.pop()
@@ -864,9 +846,17 @@ class CounterWindow:
         if items:
             self._history_preview_canvas.itemconfigure(items[0], width=width)
 
+    def _bind_history_preview_mousewheel(self, widget: tk.Widget) -> None:
+        widget.bind("<MouseWheel>", self._on_history_preview_mousewheel, add="+")
+        for child in widget.winfo_children():
+            self._bind_history_preview_mousewheel(child)
+
     def _on_history_preview_mousewheel(self, event) -> str:
         if self._history_preview_canvas is not None:
-            self._history_preview_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            if event.delta > 0:
+                self._history_preview_canvas.yview_scroll(-1, "units")
+            elif event.delta < 0:
+                self._history_preview_canvas.yview_scroll(1, "units")
         return "break"
 
     def _close_history_dialog(self) -> None:
